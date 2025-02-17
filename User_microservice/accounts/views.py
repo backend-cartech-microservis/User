@@ -56,3 +56,19 @@ class UserDetailView(APIView):
         user.pop("password", None)
 
         return Response(data=user, status=status.HTTP_200_OK)
+    
+
+class AuthMicroserviceView(APIView):
+
+    def get(self, request):
+        print("BB")
+        user_id = request.user.id
+        print(user_id)
+        user_data = settings.USER_COLLECTION.find_one({"_id": ObjectId(user_id)})
+        if user_data:
+            user_data.pop("password", None)
+            user_data['_id'] = str(user_data.get('_id', None))
+            user_info = user_data
+            return Response(data=user_info, status=status.HTTP_200_OK)
+        return Response(data={"message": "something is wrong."}
+                        ,status=status.HTTP_400_BAD_REQUEST)
