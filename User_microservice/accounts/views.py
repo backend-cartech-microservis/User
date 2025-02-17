@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from bson.objectid import ObjectId
+import requests
 
 from .serializers import UserLoginSerializer, UserRegisterSerializer, UserDetailSerializer
 
@@ -18,6 +19,7 @@ class UserRegisterView(APIView):
         vd = ser_data.validated_data
         vd["password"] = make_password(vd["password"])
         result = settings.USER_COLLECTION.insert_one(vd)
+        print(result)
         return Response(data={"message":ser_data.data, "user_id":str(result.inserted_id)}, status=status.HTTP_201_CREATED)
 
 
@@ -49,7 +51,6 @@ class UserDetailView(APIView):
     
     def get(self, request, user_id):
         user = settings.USER_COLLECTION.find_one({"_id": ObjectId(user_id)})
-
         if not user:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
         user["_id"] = str(user["_id"])
@@ -61,9 +62,7 @@ class UserDetailView(APIView):
 class AuthMicroserviceView(APIView):
 
     def get(self, request):
-        print("BB")
         user_id = request.user.id
-        print(user_id)
         user_data = settings.USER_COLLECTION.find_one({"_id": ObjectId(user_id)})
         if user_data:
             user_data.pop("password", None)
@@ -72,3 +71,28 @@ class AuthMicroserviceView(APIView):
             return Response(data=user_info, status=status.HTTP_200_OK)
         return Response(data={"message": "something is wrong."}
                         ,status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class UserGetOrdersView(APIView):
+    def get(self, request, user_id):
+        user = settings.USER_COLLECTION.find_one({"_id": ObjectId(user_id)})
+
+        try:
+            url = f"http://127.0.0.1:8000/order/get-requests/{user_id}"
+            response = requests.get(url)
+            print(response.json())
+
+            if response.status_code == 200:
+                orders = response.json()
+                print(orders)
+                for order in orders:
+                    order['name_of_user'] = str(user['name'])
+                print(orders)
+                
+                return Response(data=orders, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "Failed to fetch orders"}, status=response.status_code)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
